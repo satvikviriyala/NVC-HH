@@ -1,0 +1,80 @@
+# NVC-HH Multi-Pass Pipeline Configuration
+# Dataset Generation Pipeline for NVC-aligned HH-RLHF annotations
+
+# Paths
+paths:
+  ontologies: "ontologies"
+  prompts: "prompts"
+  input_data: "hh-rlhf"
+  output_data: "Data_refined"
+
+# API Configuration
+api:
+  base_url: "http://localhost:8000/v1"
+  timeout_seconds: 600
+
+# Multi-Pass Model Configuration
+# Each pass uses a specialized model for its specific task
+models:
+  observer:
+    # GLM 4.7 Thinking - Best for camera-test compliant observations
+    model_id: "GLM-4.7-Thinking"
+    role: "Extract neutral, non-judgmental observations"
+    parameters:
+      temperature: 0.6
+      max_tokens: 4096
+      
+  empathizer:
+    # DeepSeek V3.2 - Excellent emotional intelligence
+    model_id: "DeepSeek-V3.2"
+    role: "Identify feelings, needs, and translate pseudo-feelings"
+    parameters:
+      temperature: 0.7
+      max_tokens: 2048
+
+  strategist:
+    # Qwen 3 A235B - Strong reasoning for request generation
+    model_id: "Qwen-3-A235B"
+    role: "Generate explicit/implicit needs and NVC-aligned requests"
+    parameters:
+      temperature: 0.7
+      max_tokens: 2048
+
+  critic:
+    # LLAMA 4 Maverick - Rigorous validation and quality scoring
+    model_id: "LLAMA-4-Maverick"
+    role: "Validate outputs, assign quality scores, flag errors"
+    parameters:
+      temperature: 0.1
+      max_tokens: 2048
+
+# Processing Configuration
+processing:
+  batch_size: 128
+  context_length: 65536
+  checkpoint_every: 500
+  resume_enabled: true
+  retry_on_failure: 3
+
+# Ontology Mapping per Pass
+ontologies:
+  observer:
+    - judgment_markers_ontology
+  empathizer:
+    - feelings_ontology
+    - needs_ontology
+    - pseudo_feelings_lexicon
+  strategist:
+    - plato_strategy_filter
+    - request_quality_ontology
+  critic:
+    - feelings_ontology
+    - needs_ontology
+    - pseudo_feelings_lexicon
+    - judgment_markers_ontology
+    - somatic_markers_ontology
+
+# Output Schema Version
+schema:
+  version: "2.1.0"
+  reference: "ontologies/schema_ofnr.json"

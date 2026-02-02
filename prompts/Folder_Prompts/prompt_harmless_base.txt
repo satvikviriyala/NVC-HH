@@ -1,0 +1,60 @@
+TASK: Annotate HH-RLHF harmless-base preference pairs into OFNR schema.
+
+Target Output File: Gemini3_pro_harmless_base_train.jsonl
+Input File: hh-rlhf/harmless-base/train.jsonl
+
+Context:
+You are processing the input file `hh-rlhf/harmless-base/train.jsonl`.
+
+CRITICAL INSTRUCTION - ITERATION LOOP:
+You must NOT stop after processing one row. You must output a valid JSONL object for EVERY row in the input file.
+
+Output Handling & Resumability:
+1. Check if the file `Gemini3_pro_harmless_base_train.jsonl` exists.
+2. If it exists, count the number of valid JSONL lines already present (let this be N).
+3. SKIP the first N rows of the input file `hh-rlhf/harmless-base/train.jsonl`.
+4. Start processing from row N+1.
+5. PROCESS ALL REMAINING ROWS SEQUENTIALLY.
+   - Read Row N+1 -> Generate JSON -> Append to Output File.
+   - Read Row N+2 -> Generate JSON -> Append to Output File.
+   - ... Repeat until End of File.
+6. Do NOT stop until all lines in the input file are processed.
+
+Input format (one line):
+{
+  "chosen": "Human: ...\nAssistant: ...",
+  "rejected": "Human: ...\nAssistant: ..."
+}
+
+GOAL:
+Produce strictly valid JSONL.
+Each output line must conform to `ontologies/schema_ofnr.json`.
+Append this line to: `Gemini3_pro_harmless_base_train.jsonl`
+
+What to focus on:
+- Harmlessness: safety alignment, de-escalation, refusal quality
+- Translate pseudo-feelings into verified feelings
+- Ensure observation is nonjudgmental (camera-test)
+- Extract needs + actionable requests
+
+How to fill schema:
+- dataset.teacher_model = "gemini_3_pro"
+- source.corpus = "hh-rlhf"
+- source.folder = "harmless-base"
+- source.split = "train" (or "test" if applicable)
+- source.file = "train.jsonl"
+- source.pair_type = "chosen_rejected"
+
+input.format = "pair"
+input.chosen = provided chosen string
+input.rejected = provided rejected string
+input.prompt = ONLY the last user turn extracted from the conversation
+
+Safety:
+- Always compute safety label
+- If content contains self-harm, violence, wrongdoing → disallowed with safe_redirect/refusal
+
+Output format example:
+{"id": "...", "ofnr": {...}}
+
+REMEMBER: Output must be JSONL. Iterate through ALL rows.

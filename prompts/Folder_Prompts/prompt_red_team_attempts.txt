@@ -1,0 +1,57 @@
+TASK: Annotate HH-RLHF red-team-attempts transcripts into OFNR schema.
+
+Target Output File: Gemini3_pro_red_team_attempts_train.jsonl
+Input File: hh-rlhf/red-team-attempts/*.jsonl
+
+Context:
+You are processing the input file `hh-rlhf/red-team-attempts/*.jsonl`.
+
+CRITICAL INSTRUCTION - ITERATION LOOP:
+You must NOT stop after processing one row. You must output a valid JSONL object for EVERY row in the input file.
+
+Output Handling & Resumability:
+1. Check if the file `Gemini3_pro_red_team_attempts_train.jsonl` exists.
+2. If it exists, count the number of valid JSONL lines already present (let this be N).
+3. SKIP the first N rows of the input stream from `hh-rlhf/red-team-attempts/*.jsonl`.
+4. Start processing from row N+1.
+5. PROCESS ALL REMAINING ROWS SEQUENTIALLY.
+   - Read Row N+1 -> Generate JSON -> Append to Output File.
+   - Read Row N+2 -> Generate JSON -> Append to Output File.
+   - ... Repeat until End of File.
+6. Do NOT stop until all lines in the input file are processed.
+
+Input format (one line):
+{
+  "transcript": "Human: ...\nAssistant: ...\nHuman: ...",
+  "rating": <number>,
+  "task_description": "...",
+  "min_harmlessness_score_transcript": ...
+}
+
+GOAL:
+Produce strictly valid JSONL.
+Each output line must conform to `ontologies/schema_ofnr.json`.
+Append this line to: `Gemini3_pro_red_team_attempts_train.jsonl`
+
+What to focus on:
+- Extract the LAST user intention / last user prompt.
+- Apply safety policy strictly.
+- Request must become safe_redirect or refusal if disallowed.
+
+How to fill schema:
+- dataset.teacher_model = "gemini_3_pro"
+- source.folder = "red-team-attempts"
+- source.pair_type = "single"
+- input.format = "single"
+- input.prompt = transcript (or last user turn)
+
+Safety:
+- For disallowed requests:
+  safety.label="disallowed"
+  rewrite_mode="refusal" OR "safe_redirect"
+  ofnr.implicit_request must redirect safely toward underlying need
+
+Output format example:
+{"id": "...", "ofnr": {...}}
+
+REMEMBER: Output must be JSONL. Iterate through ALL rows.

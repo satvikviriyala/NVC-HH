@@ -1,0 +1,106 @@
+{
+    "name": "schema_ofnr",
+    "version": "2.1.0",
+    "description": "OFNR output schema for NVC-HH dataset annotations. Contains NVC-aligned fields for observations, feelings, needs, and requests.",
+    "license": "research-use",
+    "schema": {
+        "id": "string",
+        "ofnr": {
+            "observation": "string - Camera-test compliant, no judgments unless quoted",
+            "feeling": [
+                "string - tokens from feelings_ontology.json ONLY"
+            ],
+            "need": [
+                "string - tokens from needs_ontology.json ONLY"
+            ],
+            "explicit_need": [
+                "string - free-form surface wants/strategies"
+            ],
+            "implicit_need": [
+                "string - inferred hidden wants"
+            ],
+            "explicit_request": [
+                "string - what user directly asked for"
+            ],
+            "implicit_request": [
+                "string - NVC-aligned constructive request"
+            ],
+            "implicit_intent": "string - underlying goal",
+            "pseudo_feelings_detected": [
+                "string - pseudo-feelings found and translated"
+            ]
+        },
+        "metadata": {
+            "emotion_arousal_hint": "low|medium|high|null",
+            "emotion_valence_hint": "positive|negative|mixed|null",
+            "somatic_markers": [
+                {
+                    "marker": "string",
+                    "intensity": "low|medium|high",
+                    "evidence_span": "string"
+                }
+            ]
+        },
+        "safety": {
+            "label": "allowed|disallowed|ambiguous",
+            "reason": "string"
+        },
+        "quality": {
+            "observation_is_nonjudgmental": "integer (1-5 Likert: 1=Poor, 2=Fair, 3=Good, 4=Very Good, 5=Excellent)",
+            "needs_list_match": "integer (1-5 Likert: 1=None match, 3=Some match, 5=All match)",
+            "overall_confidence": "integer (1-5 Likert: 1=Very Low, 3=Moderate, 5=Very High)"
+        },
+        "flags": {
+            "error_flags": [
+                "string"
+            ],
+            "warnings": [
+                "string"
+            ]
+        }
+    },
+    "input_fields_not_in_output": {
+        "note": "These fields are provided in INPUT for analysis but NOT included in OUTPUT to reduce token costs",
+        "fields": [
+            "prompt",
+            "context",
+            "human_chosen_response",
+            "human_rejected_response"
+        ],
+        "merge_strategy": "Use 'id' field to join annotations back with original data"
+    },
+    "rules": {
+        "max_list_lengths": {
+            "feeling": 4,
+            "need": 3,
+            "explicit_need": 6,
+            "implicit_need": 6,
+            "explicit_request": 3,
+            "implicit_request": 4
+        },
+        "scoring": {
+            "scale": "1-5 Likert",
+            "labels": {
+                "1": "Poor / Very Low / None",
+                "2": "Fair / Low / Few",
+                "3": "Good / Moderate / Some",
+                "4": "Very Good / High / Most",
+                "5": "Excellent / Very High / All"
+            },
+            "description": "Use 1-5 Likert scale for all quality scores"
+        }
+    },
+    "validation_contract": {
+        "feeling": "must be subset of feelings_ontology.canonical_feelings_flat_list",
+        "need": "must be subset of needs_ontology needs labels",
+        "pseudo_feelings_detected": "tokens from pseudo_feelings_lexicon, must NOT appear in feeling field",
+        "observation": "no judgment markers unless inside quotes"
+    },
+    "ontology_references": {
+        "needs_ontology": "ontologies/needs_ontology.json",
+        "feelings_ontology": "ontologies/feelings_ontology.json",
+        "pseudo_feelings_lexicon": "ontologies/pseudo_feelings_lexicon.json",
+        "somatic_markers_ontology": "ontologies/somatic_markers_ontology.json",
+        "judgment_markers_ontology": "ontologies/judgment_markers_ontology.json"
+    }
+}
