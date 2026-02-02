@@ -66,6 +66,42 @@ The dataset is generated through **4 sequential passes**, each handled by a spec
 
 ---
 
+## Output Optimization
+
+### Initial Approach (First Two Folders)
+
+For the first two folders (`harmless-base` and `helpful-base`), we initially outputted **complete responses** including:
+- Full context
+- Original query/prompt
+- Chosen and rejected responses
+- All OFNR annotations
+
+This resulted in large output files but provided complete data in a single JSON object per row.
+
+### Optimized Approach (Remaining Folders)
+
+To reduce token costs and improve throughput, we optimized the pipeline:
+
+1. **OFNR-Only Output:** Models output only the OFNR-related fields (observations, feelings, needs, requests, metadata, safety, quality)
+2. **ID-Based Merging:** Each output includes only the row `id` for reference
+3. **Post-Processing Merge:** A Python script (`scripts/merge_and_convert_to_jsonl.py`) joins the OFNR annotations back with the original context data using the ID field
+
+### JSON to JSONL Conversion
+
+The pipeline outputs JSON files (one object per file or array of objects). For training compatibility, we convert to JSONL format:
+
+```bash
+python scripts/merge_and_convert_to_jsonl.py
+```
+
+This script:
+1. Reads JSON annotation files from each folder
+2. Merges OFNR annotations with original context/prompt/responses
+3. Outputs clean JSONL files (one JSON object per line)
+4. Handles both array-format and single-object JSON files
+
+---
+
 ## Output Schema
 
 Each annotated row follows the `schema_ofnr.json` structure:
@@ -173,6 +209,14 @@ npx ngrok http 3000
 ```
 NVC-HH/
 ├── config.yaml              # Pipeline configuration
+├── passes/                  # Multi-pass pipeline modules
+│   ├── base.py             # Base pass class
+│   ├── observer.py         # Pass 1: Observation extraction
+│   ├── empathizer.py       # Pass 2: Feeling/need identification
+│   ├── strategist.py       # Pass 3: Request generation
+│   └── critic.py           # Pass 4: Quality validation
+├── scripts/                 # Utility scripts
+│   └── merge_and_convert_to_jsonl.py  # JSON merge & JSONL conversion
 ├── ontologies/              # Controlled vocabularies
 │   ├── feelings_ontology.json
 │   ├── needs_ontology.json
