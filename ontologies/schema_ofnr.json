@@ -20,10 +20,10 @@
                 "string - inferred hidden wants"
             ],
             "explicit_request": [
-                "string - what user directly asked for"
+                "string - actionable plan for the assistant addressing the explicit need (or need as backup)"
             ],
             "implicit_request": [
-                "string - NVC-aligned constructive request"
+                "string - actionable plan for the assistant addressing the implicit need (or need as backup)"
             ],
             "implicit_intent": "string - underlying goal",
             "pseudo_feelings_detected": [

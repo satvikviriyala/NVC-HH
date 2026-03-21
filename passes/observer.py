@@ -11,8 +11,7 @@ from passes.base import BaseLLMPass
 class ObserverPass(BaseLLMPass):
     PASS_NAME = "observer"
     OUTPUT_FIELDS = [
-        "ofnr.observation",
-        "ofnr.evaluations_detected"
+        "ofnr.observation"
     ]
     PROMPT_FILE = "pass_observer.txt"
     REQUIRED_ONTOLOGIES = ["judgment_markers_ontology"]
@@ -20,21 +19,15 @@ class ObserverPass(BaseLLMPass):
     def _default_system_prompt(self) -> str:
         return """You are an NVC Observer. Extract objective observations only.
 Apply the Camera Test: only facts a video camera could record.
-Detect judgment/evaluation words and list them.
-Output JSON: {"observation": [...], "evaluations_detected": [...]}"""
+Output JSON: {"observation": "..."}"""
     
     def build_user_prompt(self, row: Dict[str, Any]) -> str:
-        input_data = row.get("input", {})
+        prompt = row.get("prompt", "")
+        context = row.get("context", "")
+        chosen = row.get("human_chosen_response")
+        rejected = row.get("human_rejected_response")
         
-        if input_data.get("format") == "pair":
-            text = input_data.get("chosen") or input_data.get("rejected") or ""
-        else:
-            text = input_data.get("assistant_response") or ""
-        
-        prompt = input_data.get("prompt", "")
-        context = input_data.get("context", "")
-        
-        return f"""Analyze this conversation and extract observations.
+        return f"""Analyze this conversation and extract a single objective observation string.
 
 CONTEXT:
 {context[:1500] if context else "(none)"}
@@ -42,14 +35,21 @@ CONTEXT:
 LAST USER TURN:
 {prompt}
 
-FULL TEXT:
-{text[:3000]}
+CHOSEN ASSISTANT RESPONSE:
+{chosen[:2000] if chosen else "(none)"}
 
-Extract: (1) objective observations (camera-test), (2) any judgment/evaluation words detected."""
+REJECTED ASSISTANT RESPONSE (Negative Example):
+{rejected[:2000] if rejected else "(none)"}
+
+Extract: A single objective observation string summarizing the interaction (camera-test). The rejected response is a negative example of assistant behavior; focus your observation on the factual turns and the chosen path."""
     
     def parse_response(self, response: str) -> Dict[str, Any]:
         data = self._extract_json(response)
+        
+        obs = data.get("observation", "")
+        if isinstance(obs, list):
+            obs = " ".join(obs)
+            
         return {
-            "ofnr.observation": data.get("observation", []),
-            "ofnr.evaluations_detected": data.get("evaluations_detected", [])
+            "ofnr.observation": obs
         }

@@ -13,9 +13,7 @@ class StrategistPass(BaseLLMPass):
     OUTPUT_FIELDS = [
         "ofnr.explicit_request",
         "ofnr.implicit_request",
-        "ofnr.implicit_intent",
-        "ofnr.strategy_leakage_detected",
-        "ofnr.translation_notes"
+        "ofnr.implicit_intent"
     ]
     PROMPT_FILE = "pass_strategist.txt"
     REQUIRED_ONTOLOGIES = ["plato_strategy_filter", "request_quality_ontology"]
@@ -27,33 +25,41 @@ Convert demands to positive requests.
 Output JSON: {"explicit_request": [...], "implicit_request": [...], ...}"""
     
     def build_user_prompt(self, row: Dict[str, Any]) -> str:
-        input_data = row.get("input", {})
         ofnr = row.get("ofnr", {})
         
-        prompt = input_data.get("prompt", "")
-        observation = ofnr.get("observation", [])
-        feelings = ofnr.get("feelings", [])
+        prompt = row.get("prompt", "")
+        observation = ofnr.get("observation", "")
+        feeling = ofnr.get("feeling", [])
         needs = ofnr.get("need", [])
-        explicit_needs = ofnr.get("explicit_needs", [])
+        explicit_need = ofnr.get("explicit_need", [])
+        implicit_need = ofnr.get("implicit_need", [])
         
-        return f"""Based on the analysis, formulate requests.
+        return f"""Based on the analysis, formulate requests/action plans for the Assistant.
 
 OBSERVATION: {observation}
-FEELINGS: {feelings}
+FEELINGS: {feeling}
 NEEDS (universal): {needs}
-EXPLICIT WANTS: {explicit_needs}
+EXPLICIT WANTS (explicit_need): {explicit_need}
+IMPLICIT WANTS (implicit_need): {implicit_need}
 
 ORIGINAL USER TURN:
 {prompt}
 
-Generate: explicit_request, implicit_request (NVC-style "Would you be willing to...?"), implicit_intent, strategy_leakage."""
+Generate: explicit_request (list), implicit_request (list), implicit_intent (string)."""
     
     def parse_response(self, response: str) -> Dict[str, Any]:
         data = self._extract_json(response)
+        
+        exp_req = data.get("explicit_request", [])
+        if isinstance(exp_req, str):
+            exp_req = [exp_req]
+            
+        imp_req = data.get("implicit_request", [])
+        if isinstance(imp_req, str):
+            imp_req = [imp_req]
+            
         return {
-            "ofnr.explicit_request": data.get("explicit_request", []),
-            "ofnr.implicit_request": data.get("implicit_request", []),
-            "ofnr.implicit_intent": data.get("implicit_intent"),
-            "ofnr.strategy_leakage_detected": data.get("strategy_leakage_detected", []),
-            "ofnr.translation_notes": data.get("translation_notes")
+            "ofnr.explicit_request": exp_req,
+            "ofnr.implicit_request": imp_req,
+            "ofnr.implicit_intent": data.get("implicit_intent", "")
         }

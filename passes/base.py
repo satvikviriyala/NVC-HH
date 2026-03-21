@@ -1,5 +1,5 @@
 """
-Base class for all LLM passes with dynamic ontology injection.
+Base class for all LLM passes with dynamic ontology injection using GCP Vertex AI.
 
 Paths are resolved relative to the project structure:
 - NVC_Contructive/ (project root)
@@ -15,9 +15,15 @@ import re
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-import aiohttp
 import asyncio
 from tqdm.asyncio import tqdm
+from google import genai
+from google.genai.types import (
+    GenerateContentConfig,
+    HttpOptions,
+    HarmCategory,
+    HarmBlockThreshold
+)
 
 # Resolve paths relative to this file's location
 _THIS_FILE = Path(__file__).resolve()
@@ -29,6 +35,7 @@ _DATA_GEN_ROOT = _PROJECT_ROOT.parent  # Data Gen/
 DEFAULT_PROMPTS_DIR = _PROJECT_ROOT / "prompts"
 DEFAULT_ONTOLOGIES_DIR = _DATA_GEN_ROOT / "ontologies"
 
+PROJECT_ID = "gcp-learn-483706"
 
 class BaseLLMPass(ABC):
     """Base class for all pipeline passes."""
@@ -42,25 +49,31 @@ class BaseLLMPass(ABC):
     def __init__(
         self,
         model_id: str,
-        api_base: str = "http://localhost:8000/v1",
+        location: str = "global",
         temperature: float = 0.2,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
         prompts_dir: Optional[str] = None,
-        ontologies_dir: Optional[str] = None
+        ontologies_dir: Optional[str] = None,
+        folder_prompt_file: Optional[str] = None,
+        max_concurrent: int = 5
     ):
         self.model_id = model_id
-        self.api_base = api_base
+        self.location = location
         self.temperature = temperature
         self.max_tokens = max_tokens
         # Use default paths if not specified
         self.prompts_dir = Path(prompts_dir) if prompts_dir else DEFAULT_PROMPTS_DIR
         self.ontologies_dir = Path(ontologies_dir) if ontologies_dir else DEFAULT_ONTOLOGIES_DIR
+        self.folder_prompt_file = folder_prompt_file
+        self.max_concurrent = max_concurrent
         self._system_prompt: Optional[str] = None
         self._ontologies: Dict[str, Any] = {}
         
         # Log paths for debugging
         print(f"[{self.PASS_NAME}] Prompts dir: {self.prompts_dir}")
         print(f"[{self.PASS_NAME}] Ontologies dir: {self.ontologies_dir}")
+        if self.folder_prompt_file:
+            print(f"[{self.PASS_NAME}] Folder prompt: {self.folder_prompt_file}")
     
     def load_ontologies(self) -> Dict[str, Any]:
         """Load required ontology JSON files."""
@@ -144,14 +157,33 @@ class BaseLLMPass(ABC):
     def system_prompt(self) -> str:
         """Load system prompt from file and inject ontologies."""
         if self._system_prompt is None:
+            base_prompt = ""
+            
+            # 1. Load Global System Instructions (as reference)
+            sys_instr_path = os.path.join(self.prompts_dir, "system_instructions.txt")
+            if os.path.exists(sys_instr_path):
+                with open(sys_instr_path, 'r') as f:
+                    base_prompt += "== GLOBAL SYSTEM INSTRUCTIONS (REFERENCE) ==\n" + f.read() + "\n\n"
+            
+            # 2. Load Folder-Specific Context
+            if self.folder_prompt_file:
+                folder_prompt_path = os.path.join(self.prompts_dir, "Folder_Prompts", self.folder_prompt_file)
+                if os.path.exists(folder_prompt_path):
+                    with open(folder_prompt_path, 'r') as f:
+                        base_prompt += "== FOLDER CONTEXT ==\n" + f.read() + "\n\n"
+            
+            # 3. Load Pass-Specific Role & Rules (The core mission)
             prompt_path = os.path.join(self.prompts_dir, self.PROMPT_FILE)
             if os.path.exists(prompt_path):
                 with open(prompt_path, 'r') as f:
-                    base_prompt = f.read()
+                    base_prompt += "== YOUR SPECIFIC ROLE FOR THIS TASK (PRIORITY) ==\n" + f.read()
             else:
-                base_prompt = self._default_system_prompt()
+                base_prompt += self._default_system_prompt()
             
-            # Inject ontologies
+            # 5. Strict Output Formatting Reminder
+            base_prompt += "\n\nCRITICAL: You are currently performing only ONE step of a multi-pass pipeline. Even if the global instructions mention other fields, you MUST ONLY output the JSON keys specified in YOUR SPECIFIC ROLE section above. Do not output the full schema."
+            
+            # 4. Inject Ontologies
             ontology_section = self._build_ontology_section()
             self._system_prompt = base_prompt + "\n\n" + ontology_section
         
@@ -175,8 +207,6 @@ class BaseLLMPass(ABC):
     def apply_to_row(self, row: Dict[str, Any], parsed: Dict[str, Any]) -> Dict[str, Any]:
         """Apply parsed output to row, respecting field ownership."""
         for field_path in self.OUTPUT_FIELDS:
-            # parsed dict has flat keys like "ofnr.observation"
-            # so we get value directly, then set using nested path
             value = parsed.get(field_path)
             if value is not None:
                 self._set_nested(row, field_path, value)
@@ -226,60 +256,84 @@ class BaseLLMPass(ABC):
         
         return {}
     
-    async def _call_llm(self, session: aiohttp.ClientSession, user_prompt: str) -> str:
-        """Call LLM API."""
-        payload = {
-            "model": self.model_id,
-            "messages": [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens
-        }
+    async def _call_llm(self, client: genai.Client, semaphore: asyncio.Semaphore, user_prompt: str) -> str:
+        """Call LLM API with retries and backoff."""
+        prompt = f"{self.system_prompt}\n\n{user_prompt}"
         
-        try:
-            async with session.post(
-                f"{self.api_base}/chat/completions",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=120)
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data['choices'][0]['message']['content']
-                else:
-                    return ""
-        except Exception as e:
-            print(f"LLM call failed: {e}")
+        config = GenerateContentConfig(
+            max_output_tokens=self.max_tokens,
+            temperature=self.temperature,
+            safety_settings=[
+                {"category": HarmCategory.HARM_CATEGORY_HATE_SPEECH, "threshold": HarmBlockThreshold.BLOCK_NONE},
+                {"category": HarmCategory.HARM_CATEGORY_HARASSMENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+                {"category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+                {"category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            ]
+        )
+
+        async with semaphore:
+            for attempt in range(4):
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=self.model_id,
+                        contents=prompt,
+                        config=config
+                    )
+                    
+                    eval_text = response.text or ""
+                    if not eval_text and response.candidates:
+                        finish_reason = getattr(response.candidates[0], "finish_reason", "UNKNOWN")
+                        if str(finish_reason).endswith("PROHIBITED_CONTENT") or str(finish_reason).endswith("SAFETY"):
+                            print(f"[{self.PASS_NAME}] Blocked by safety filter. Returning empty.")
+                            return ""
+                    return eval_text
+                except Exception as e:
+                    err_msg = str(e)
+                    print(f"[{self.PASS_NAME}] Error (attempt {attempt+1}): {err_msg}")
+                    if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                        await asyncio.sleep(10 * (attempt + 1))
+                
+                if attempt < 3:
+                    await asyncio.sleep(2 * (attempt + 1))
+            
+            print(f"[{self.PASS_NAME}] FAILED entirely after 4 attempts.")
             return ""
     
     async def process_batch(self, rows: List[Dict[str, Any]], batch_size: int = 64) -> List[Dict[str, Any]]:
         """Process rows in batches."""
         results = []
         
-        async with aiohttp.ClientSession() as session:
-            for i in range(0, len(rows), batch_size):
-                batch = rows[i:i+batch_size]
-                tasks = []
+        client = genai.Client(
+            vertexai=True,
+            project=PROJECT_ID,
+            location=self.location,
+            http_options=HttpOptions(api_version="v1")
+        )
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+        
+        for i in range(0, len(rows), batch_size):
+            batch = rows[i:i+batch_size]
+            tasks = []
+            
+            for row in batch:
+                if self._is_already_processed(row):
+                    results.append(row)
+                    continue
                 
-                for row in batch:
-                    if self._is_already_processed(row):
-                        results.append(row)
-                        continue
-                    
-                    user_prompt = self.build_user_prompt(row)
-                    tasks.append(self._process_single(session, row, user_prompt))
-                
-                if tasks:
-                    batch_results = await tqdm.gather(*tasks, desc=f"{self.PASS_NAME} batch")
-                    results.extend(batch_results)
+                user_prompt = self.build_user_prompt(row)
+                tasks.append(self._process_single(client, semaphore, row, user_prompt))
+            
+            if tasks:
+                batch_results = await tqdm.gather(*tasks, desc=f"{self.PASS_NAME} batch")
+                results.extend(batch_results)
         
         return results
     
-    async def _process_single(self, session: aiohttp.ClientSession, row: Dict[str, Any], user_prompt: str) -> Dict[str, Any]:
+    async def _process_single(self, client: genai.Client, semaphore: asyncio.Semaphore, row: Dict[str, Any], user_prompt: str) -> Dict[str, Any]:
         """Process a single row."""
-        response = await self._call_llm(session, user_prompt)
+        response = await self._call_llm(client, semaphore, user_prompt)
         if response:
+            print(f"\nRAW LLM RESPONSE for {row['id']}: {response}\n")
             parsed = self.parse_response(response)
             row = self.apply_to_row(row, parsed)
         return row
@@ -290,8 +344,8 @@ class BaseLLMPass(ABC):
         """
         for field_path in self.OUTPUT_FIELDS:
             value = self._get_nested(row, field_path)
-            if value is None:
-                # At least one field is missing - needs processing
+            if value is None or value == "" or value == []:
+                # At least one field is missing or empty - needs processing
                 return False
         # All fields have values - already processed
         return True
@@ -313,6 +367,8 @@ class BaseLLMPass(ABC):
         
         processed = asyncio.run(self.process_batch(rows, batch_size=batch_size))
         
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w') as f:
             for row in processed:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
