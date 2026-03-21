@@ -209,6 +209,12 @@ npx ngrok http 3000
 ```
 NVC-HH/
 ├── config.yaml              # Pipeline configuration
+├── Data_refined/            # Processed NVC-HH Dataset (20,000 annotated pairs)
+│   ├── harmless-base/       # train.jsonl
+│   ├── helpful-base/        # train.jsonl
+│   ├── helpful-online/      # train.jsonl
+│   ├── helpful-rejections-sampled/ # train.jsonl
+│   └── red-team-attempts/   # train.jsonl
 ├── passes/                  # Multi-pass pipeline modules
 │   ├── base.py             # Base pass class
 │   ├── observer.py         # Pass 1: Observation extraction
@@ -216,18 +222,27 @@ NVC-HH/
 │   ├── strategist.py       # Pass 3: Request generation
 │   └── critic.py           # Pass 4: Quality validation
 ├── scripts/                 # Utility scripts
-│   └── merge_and_convert_to_jsonl.py  # JSON merge & JSONL conversion
+│   ├── calculate_quality_metrics.py   # Computes Critic validation scores
+│   ├── merge_and_convert_to_jsonl.py  # JSON merge & JSONL conversion
+│   ├── run_pipeline.py                # Main execution script for the 4-pass pipeline
+│   ├── simplify_red_team.py           # Prepares red-team data for annotation
+│   └── simplify_schema.py             # Parses multi-turn dialogue into NVC-HH layout
 ├── ontologies/              # Controlled vocabularies
 │   ├── feelings_ontology.json
 │   ├── needs_ontology.json
 │   ├── pseudo_feelings_lexicon.json
 │   ├── judgment_markers_ontology.json
 │   ├── somatic_markers_ontology.json
+│   ├── plato_strategy_filter.json
 │   ├── request_quality_ontology.json
 │   └── schema_ofnr.json
 ├── prompts/                 # Pass-specific prompts
 │   ├── Folder_Prompts/      # Per-folder generation prompts
-│   └── system_ofnr_teacher_final.txt
+│   ├── pass_observer.txt    # Observer role instructions
+│   ├── pass_empathizer.txt  # Empathizer role instructions
+│   ├── pass_strategist.txt  # Strategist role instructions
+│   ├── pass_critic.txt      # Critic role instructions
+│   └── system_instructions.txt # Global system instructions
 ├── validation-app/          # Next.js validation interface
 │   ├── src/
 │   │   ├── app/            # Routes (general, lawyers)
@@ -248,6 +263,7 @@ NVC-HH/
 | `pseudo_feelings_lexicon.json` | Pseudo-feelings to translate |
 | `judgment_markers_ontology.json` | Words indicating judgments |
 | `somatic_markers_ontology.json` | Body-based emotional cues |
+| `plato_strategy_filter.json` | Valid NVC communication strategies |
 | `request_quality_ontology.json` | Criteria for valid NVC requests |
 
 ---
@@ -261,7 +277,9 @@ Original data from Anthropic's HH-RLHF dataset:
 - `helpful-rejection-sampled` (52,421 rows)
 - `red-team-attempts` (38,961 rows)
 
-**Total: 199,761 conversation pairs**
+**Original Total: 199,761 conversation pairs**
+
+**NVC-HH Release:** The initial processed dataset contains **20,000** fully annotated conversation pairs distributed across the five subsets.
 
 ---
 

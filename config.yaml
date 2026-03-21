@@ -5,7 +5,7 @@
 paths:
   ontologies: "ontologies"
   prompts: "prompts"
-  input_data: "hh-rlhf"
+  input_data: "nvc-hhrlhf"
   output_data: "Data_refined"
 
 # API Configuration
