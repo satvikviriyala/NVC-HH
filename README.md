@@ -2,6 +2,14 @@
 
 A multi-pass LLM pipeline for annotating the Anthropic HH-RLHF dataset with **Nonviolent Communication (NVC)** aligned OFNR (Observation, Feeling, Need, Request) annotations.
 
+## About This Work
+
+This work was carried out at the **[ScaDS.ai Lab (Scalable Data Science & Artificial Intelligence)](https://www.iiitb.ac.in/labs/scads-lab/scads-lab)** at the **International Institute of Information Technology Bangalore (IIITB)**, Along with **[Prof. Vinu E. Venugopal](https://www.iiitb.ac.in/faculty/dr-vinu-e-venugopal)**, Assistant Professor at IIIT Bangalore and founder of the ScaDS.ai Lab.
+
+This dataset and pipeline are a part of the broader **NVC Project**, which aims to align large language models with principles of Nonviolent Communication (NVC) to build more empathetic, de-escalating, and human-centered AI systems.
+
+The ScaDS.ai Lab focuses on research at the intersection of Neuro-Symbolic AI, Reasoning in Modern AI Systems, and Scalable Big Data — providing the foundational research context and infrastructure that enabled this work.
+
 ## Overview
 
 NVC-HH transforms the original HH-RLHF preference pairs into a richly annotated dataset suitable for training empathetic, de-escalating AI systems. Each conversation is processed through a 4-pass pipeline using specialized LLMs to extract and validate NVC-aligned annotations.
