@@ -317,12 +317,12 @@ This work has been accepted at the **[SynthAI Workshop on Synthetic Data Generat
 If you find this work useful, please cite:
 
 ```bibtex
-@inproceedings{viriyala2026nvchh,
+@misc{viriyala2026nvchh,
   title     = {NVC-HH: A Nonviolent Communication Dataset for Aligning Large Language Models},
   author    = {Viriyala, Satvik and Venugopal, Vinu E.},
-  booktitle = {Proceedings of the SynthAI Workshop on Synthetic Data Generation and Management
-               for Building AI Systems (SynthAI@SIGMOD 2026)},
   year      = {2026},
+  note      = {Accepted at the SynthAI Workshop on Synthetic Data Generation and Management
+               for Building AI Systems, co-located with SIGMOD 2026},
   url       = {https://synthetic-data-sigmod.github.io/syndata2026/index.html}
 }
 ```
