@@ -308,15 +308,21 @@ Research use only. Original HH-RLHF data is subject to Anthropic's license.
 
 ---
 
-## Citation
+## Accepted at SynthAI @ SIGMOD 2026
 
-If you use NVC-HH in your research, please cite:
+This work has been accepted at the **[SynthAI Workshop on Synthetic Data Generation and Management for Building AI Systems](https://synthetic-data-sigmod.github.io/syndata2026/index.html)**, co-located with **SIGMOD 2026** (June 5, 2026, Heliconia).
+
+### Citation
+
+If you find this work useful, please cite:
 
 ```bibtex
-@misc{nvc-hh,
-  title={NVC-HH: Nonviolent Communication Aligned HH-RLHF Dataset},
-  author={Satvik Viriyala},
-  year={2026},
-  howpublished={\url{https://github.com/satvikviriyala/NVC-HH}}
+@inproceedings{viriyala2026nvchh,
+  title     = {NVC-HH: A Nonviolent Communication Dataset for Aligning Large Language Models},
+  author    = {Viriyala, Satvik and Venugopal, Vinu E.},
+  booktitle = {Proceedings of the SynthAI Workshop on Synthetic Data Generation and Management
+               for Building AI Systems (SynthAI@SIGMOD 2026)},
+  year      = {2026},
+  url       = {https://synthetic-data-sigmod.github.io/syndata2026/index.html}
 }
 ```
