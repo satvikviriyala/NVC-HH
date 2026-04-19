@@ -319,7 +319,7 @@ If you find this work useful, please cite:
 ```bibtex
 @misc{viriyala2026nvchh,
   title     = {NVC-HH: A Nonviolent Communication Dataset for Aligning Large Language Models},
-  author    = {Viriyala, Satvik and Venugopal, Vinu E.},
+  author    = {Viriyala, Venkata Satya Satvik and Venugopal, Vinu E.},
   year      = {2026},
   note      = {Accepted at the SynthAI Workshop on Synthetic Data Generation and Management
                for Building AI Systems, co-located with SIGMOD 2026},
